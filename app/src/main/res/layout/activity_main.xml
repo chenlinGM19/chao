@@ -175,7 +175,7 @@
                     android:id="@+id/tvModeValue"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/mode_3"
+                    android:text="Level 5"
                     android:textColor="@color/primary_color"
                     android:textStyle="bold"
                     android:textSize="14sp"/>
@@ -187,8 +187,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="-8dp"
                 android:valueFrom="1"
-                android:valueTo="5"
-                android:value="3"
+                android:valueTo="10"
+                android:value="5"
                 android:stepSize="1"
                 app:tickVisible="true"
                 app:thumbColor="@color/primary_color"
@@ -199,7 +199,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="SLEEP TIMER"
+                android:text="SLEEP TIMER / EXPORT DURATION"
                 android:textColor="@color/secondary_color"
                 android:textAllCaps="true"
                 android:letterSpacing="0.1"
@@ -220,7 +220,7 @@
                     android:id="@+id/tvTimerLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Turn off after"
+                    android:text="Stop after"
                     android:textColor="@color/text_primary"/>
 
                 <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1"/>
@@ -240,15 +240,29 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="-8dp"
-                android:valueFrom="0"
+                android:valueFrom="5"
                 android:valueTo="120"
                 android:value="30"
                 android:stepSize="5"
                 app:thumbColor="@color/primary_color"
                 app:trackColorActive="@color/primary_color"
                 app:trackColorInactive="@color/surface_light" />
+                
+            <!-- Export Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnExport"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="24dp"
+                android:text="@string/btn_export"
+                android:textColor="@color/primary_color"
+                app:icon="@android:drawable/ic_menu_save"
+                app:iconTint="@color/primary_color"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                app:strokeColor="@color/primary_color"
+                app:cornerRadius="12dp"/>
 
-            <Space android:layout_width="match_parent" android:layout_height="80dp"/>
+            <Space android:layout_width="match_parent" android:layout_height="100dp"/>
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

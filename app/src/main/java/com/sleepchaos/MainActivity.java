@@ -37,6 +37,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvPlaylistHeader;
     private View layoutEmptyState;
     private ExtendedFloatingActionButton btnAction;
+    private MaterialButton btnExport;
     private Slider sliderTimer;
     private Slider sliderMode;
     private boolean isPlaying = false;
@@ -78,13 +79,14 @@ public class MainActivity extends AppCompatActivity {
         tvModeValue = findViewById(R.id.tvModeValue);
         layoutEmptyState = findViewById(R.id.layoutEmptyState);
         btnAction = findViewById(R.id.btnAction);
+        btnExport = findViewById(R.id.btnExport);
         sliderTimer = findViewById(R.id.sliderTimer);
         sliderMode = findViewById(R.id.sliderMode);
         View btnAddFiles = findViewById(R.id.btnAddFiles);
         View btnClear = findViewById(R.id.btnClear);
         RecyclerView recyclerView = findViewById(R.id.recyclerViewFiles);
 
-        // Setup RecyclerView with Swipe to Remove
+        // Setup RecyclerView
         fileAdapter = new FileAdapter(playlistUris);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(fileAdapter);
@@ -129,19 +131,22 @@ public class MainActivity extends AppCompatActivity {
         sliderMode.addOnChangeListener((slider, value, fromUser) -> {
             updateModeLabel((int) value);
         });
-        updateModeLabel(3); // Default
+        updateModeLabel(5); // Default
 
         btnAction.setOnClickListener(v -> togglePlayback());
+        
+        btnExport.setOnClickListener(v -> performExport());
     }
     
     private void updateModeLabel(int mode) {
-        switch (mode) {
-            case 1: tvModeValue.setText(R.string.mode_1); break;
-            case 2: tvModeValue.setText(R.string.mode_2); break;
-            case 3: tvModeValue.setText(R.string.mode_3); break;
-            case 4: tvModeValue.setText(R.string.mode_4); break;
-            case 5: tvModeValue.setText(R.string.mode_5); break;
-        }
+        String desc;
+        if (mode <= 2) desc = getString(R.string.mode_desc_rapid);
+        else if (mode <= 4) desc = getString(R.string.mode_desc_moderate);
+        else if (mode <= 6) desc = getString(R.string.mode_desc_balanced);
+        else if (mode <= 8) desc = getString(R.string.mode_desc_slow);
+        else desc = getString(R.string.mode_desc_sparse);
+        
+        tvModeValue.setText(getString(R.string.mode_pattern, mode, desc));
     }
 
     private void addUriToPlaylist(Uri uri) {
@@ -159,7 +164,6 @@ public class MainActivity extends AppCompatActivity {
         String label = playlistUris.isEmpty() ? "SOUNDSCAPES" : "SOUNDSCAPES (" + playlistUris.size() + ")";
         tvPlaylistHeader.setText(label);
         fileAdapter.notifyDataSetChanged();
-        
         layoutEmptyState.setVisibility(playlistUris.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
@@ -229,13 +233,50 @@ public class MainActivity extends AppCompatActivity {
             btnAction.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.accent_error));
             sliderMode.setEnabled(false);
             sliderTimer.setEnabled(false);
+            btnExport.setEnabled(false);
         } else {
             btnAction.setText(R.string.btn_start);
             btnAction.setIconResource(android.R.drawable.ic_media_play);
             btnAction.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.primary_color));
             sliderMode.setEnabled(true);
             sliderTimer.setEnabled(true);
+            btnExport.setEnabled(true);
         }
+    }
+
+    private void performExport() {
+        if (playlistUris.isEmpty()) {
+            Toast.makeText(this, "No audio to export", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Only export the first file for simplicity in this native implementation
+        Uri source = playlistUris.get(0);
+        int duration = (int) sliderTimer.getValue();
+        int mode = (int) sliderMode.getValue();
+
+        if (duration == 0) duration = 10; // Default 10 min if infinite selected for export
+
+        Toast.makeText(this, R.string.export_start, Toast.LENGTH_LONG).show();
+        btnExport.setEnabled(false);
+
+        AudioExporter.exportChaosAudio(this, source, duration, mode, new AudioExporter.ExportCallback() {
+            @Override
+            public void onSuccess(String path) {
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, R.string.export_success, Toast.LENGTH_LONG).show();
+                    btnExport.setEnabled(true);
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, String.format(getString(R.string.export_error), error), Toast.LENGTH_LONG).show();
+                    btnExport.setEnabled(true);
+                });
+            }
+        });
     }
 
     // RecyclerView Adapter
@@ -257,7 +298,6 @@ public class MainActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull FileViewHolder holder, int position) {
             Uri uri = uris.get(position);
             holder.tvFileName.setText(getFileName(uri));
-            // Basic animation to show item appearance
             holder.itemView.setAlpha(0f);
             holder.itemView.animate().alpha(1f).setDuration(300).start();
         }
