@@ -13,6 +13,7 @@ import android.provider.OpenableColumns;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
@@ -27,10 +28,23 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.slider.Slider;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class MainActivity extends AppCompatActivity {
 
-    private ArrayList<Uri> playlistUris = new ArrayList<>();
+    // Wrapper class to track selection state
+    private static class AudioItem {
+        Uri uri;
+        boolean isSelected;
+        
+        AudioItem(Uri uri) {
+            this.uri = uri;
+            this.isSelected = true; // Default selected
+        }
+    }
+
+    private ArrayList<AudioItem> playlist = new ArrayList<>();
     private FileAdapter fileAdapter;
     private TextView tvTimerValue;
     private TextView tvModeValue;
@@ -87,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
         RecyclerView recyclerView = findViewById(R.id.recyclerViewFiles);
 
         // Setup RecyclerView
-        fileAdapter = new FileAdapter(playlistUris);
+        fileAdapter = new FileAdapter(playlist);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(fileAdapter);
         
@@ -99,7 +113,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onSwiped(RecyclerView.ViewHolder viewHolder, int swipeDir) {
                 int position = viewHolder.getAdapterPosition();
-                playlistUris.remove(position);
+                playlist.remove(position);
                 fileAdapter.notifyItemRemoved(position);
                 updatePlaylistUI();
             }
@@ -118,7 +132,7 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Stop playback before clearing list", Toast.LENGTH_SHORT).show();
                 return;
             }
-            playlistUris.clear();
+            playlist.clear();
             updatePlaylistUI();
         });
 
@@ -156,15 +170,15 @@ public class MainActivity extends AppCompatActivity {
             } catch (SecurityException e) {
                 // Ignore
             }
-            playlistUris.add(uri);
+            playlist.add(new AudioItem(uri));
         }
     }
 
     private void updatePlaylistUI() {
-        String label = playlistUris.isEmpty() ? "SOUNDSCAPES" : "SOUNDSCAPES (" + playlistUris.size() + ")";
+        String label = playlist.isEmpty() ? "SOUNDSCAPES" : "SOUNDSCAPES (" + playlist.size() + ")";
         tvPlaylistHeader.setText(label);
         fileAdapter.notifyDataSetChanged();
-        layoutEmptyState.setVisibility(playlistUris.isEmpty() ? View.VISIBLE : View.GONE);
+        layoutEmptyState.setVisibility(playlist.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
     private void checkPermissions() {
@@ -195,13 +209,23 @@ public class MainActivity extends AppCompatActivity {
         Intent serviceIntent = new Intent(this, ChaosService.class);
 
         if (!isPlaying) {
-            if (playlistUris.isEmpty()) {
-                Toast.makeText(this, "Please add audio files first", Toast.LENGTH_SHORT).show();
+            // Filter only selected items
+            List<Uri> selectedUris = new ArrayList<>();
+            for (AudioItem item : playlist) {
+                if (item.isSelected) selectedUris.add(item.uri);
+            }
+
+            if (selectedUris.isEmpty()) {
+                if (playlist.isEmpty()) {
+                    Toast.makeText(this, "Please add audio files first", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "Please select at least one track to play", Toast.LENGTH_SHORT).show();
+                }
                 return;
             }
 
             ArrayList<String> uriStrings = new ArrayList<>();
-            for (Uri u : playlistUris) {
+            for (Uri u : selectedUris) {
                 uriStrings.add(u.toString());
             }
 
@@ -245,13 +269,24 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void performExport() {
-        if (playlistUris.isEmpty()) {
-            Toast.makeText(this, "No audio to export", Toast.LENGTH_SHORT).show();
+        // Find first selected item
+        Uri source = null;
+        for (AudioItem item : playlist) {
+            if (item.isSelected) {
+                source = item.uri;
+                break;
+            }
+        }
+
+        if (source == null) {
+            if (playlist.isEmpty()) {
+                Toast.makeText(this, "No audio to export", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Select a track to export", Toast.LENGTH_SHORT).show();
+            }
             return;
         }
 
-        // Only export the first file for simplicity in this native implementation
-        Uri source = playlistUris.get(0);
         int duration = (int) sliderTimer.getValue();
         int mode = (int) sliderMode.getValue();
 
@@ -281,10 +316,10 @@ public class MainActivity extends AppCompatActivity {
 
     // RecyclerView Adapter
     private class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder> {
-        private final ArrayList<Uri> uris;
+        private final ArrayList<AudioItem> items;
 
-        FileAdapter(ArrayList<Uri> uris) {
-            this.uris = uris;
+        FileAdapter(ArrayList<AudioItem> items) {
+            this.items = items;
         }
 
         @NonNull
@@ -296,23 +331,39 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(@NonNull FileViewHolder holder, int position) {
-            Uri uri = uris.get(position);
-            holder.tvFileName.setText(getFileName(uri));
+            AudioItem item = items.get(position);
+            holder.tvFileName.setText(getFileName(item.uri));
+            
+            // Remove previous listener to avoid recycling issues
+            holder.chkSelected.setOnCheckedChangeListener(null);
+            holder.chkSelected.setChecked(item.isSelected);
+            
+            holder.chkSelected.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                item.isSelected = isChecked;
+            });
+
+            // Make clicking the row toggle selection for better UX
+            holder.itemView.setOnClickListener(v -> {
+                holder.chkSelected.toggle();
+            });
+
             holder.itemView.setAlpha(0f);
             holder.itemView.animate().alpha(1f).setDuration(300).start();
         }
 
         @Override
         public int getItemCount() {
-            return uris.size();
+            return items.size();
         }
 
         class FileViewHolder extends RecyclerView.ViewHolder {
             TextView tvFileName;
+            CheckBox chkSelected;
 
             FileViewHolder(View itemView) {
                 super(itemView);
                 tvFileName = itemView.findViewById(R.id.tvFileName);
+                chkSelected = itemView.findViewById(R.id.chkSelected);
             }
         }
     }
