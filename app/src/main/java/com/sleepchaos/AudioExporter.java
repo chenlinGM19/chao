@@ -9,10 +9,9 @@ import android.os.Environment;
 import android.util.Log;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Random;
 
 public class AudioExporter {
@@ -31,7 +30,7 @@ public class AudioExporter {
         new Thread(() -> {
             MediaExtractor extractor = new MediaExtractor();
             MediaCodec decoder = null;
-            FileOutputStream fos = null;
+            RandomAccessFile raf = null;
 
             try {
                 // 1. Setup Source
@@ -55,10 +54,10 @@ public class AudioExporter {
                 File appDir = new File(musicDir, "SleepChaos");
                 if (!appDir.exists()) appDir.mkdirs();
                 File outFile = new File(appDir, "chaos_mix_" + System.currentTimeMillis() + ".wav");
-                fos = new FileOutputStream(outFile);
+                raf = new RandomAccessFile(outFile, "rw");
 
                 // Write WAV Header placeholder
-                writeWavHeader(fos, 0, SAMPLE_RATE, CHANNELS, BIT_DEPTH);
+                writeWavHeader(raf, 0, SAMPLE_RATE, CHANNELS, BIT_DEPTH);
 
                 // 4. Processing Loop
                 long totalBytesWritten = 0;
@@ -93,7 +92,7 @@ public class AudioExporter {
                         // PAUSE STATE: Write Silence
                         int silenceChunk = 4096;
                         byte[] silence = new byte[silenceChunk];
-                        fos.write(silence);
+                        raf.write(silence);
                         totalBytesWritten += silenceChunk;
                     } else {
                         // PLAY STATE: Read from Decoder
@@ -132,7 +131,7 @@ public class AudioExporter {
                             float volume = 0.3f + (random.nextFloat() * 0.7f);
                             chunk = adjustVolume(chunk, volume);
 
-                            fos.write(chunk);
+                            raf.write(chunk);
                             totalBytesWritten += chunk.length;
                             decoder.releaseOutputBuffer(outputIndex, false);
                         }
@@ -140,13 +139,13 @@ public class AudioExporter {
                 }
 
                 // 5. Finalize
-                fos.seek(0);
-                writeWavHeader(fos, totalBytesWritten, SAMPLE_RATE, CHANNELS, BIT_DEPTH);
+                raf.seek(0);
+                writeWavHeader(raf, totalBytesWritten, SAMPLE_RATE, CHANNELS, BIT_DEPTH);
                 
                 extractor.release();
                 decoder.stop();
                 decoder.release();
-                fos.close();
+                raf.close();
 
                 callback.onSuccess(outFile.getAbsolutePath());
 
@@ -154,7 +153,7 @@ public class AudioExporter {
                 Log.e(TAG, "Export failed", e);
                 callback.onError(e.getMessage());
             } finally {
-               try { if (fos != null) fos.close(); } catch (IOException e) {}
+               try { if (raf != null) raf.close(); } catch (IOException e) {}
             }
         }).start();
     }
@@ -185,7 +184,7 @@ public class AudioExporter {
         return adjusted;
     }
 
-    private static void writeWavHeader(FileOutputStream out, long totalAudioLen, long longSampleRate, int channels, long byteRate) throws IOException {
+    private static void writeWavHeader(RandomAccessFile out, long totalAudioLen, long longSampleRate, int channels, long byteRate) throws IOException {
         long totalDataLen = totalAudioLen + 36;
         long bitrate = longSampleRate * channels * byteRate / 8; // Actually ByteRate
         
