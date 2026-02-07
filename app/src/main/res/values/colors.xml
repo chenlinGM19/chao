@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Sleep Palette: Deep Indigo/Midnight -->
+    <color name="background_dark">#050510</color> <!-- Almost black blue -->
+    <color name="surface_dark">#101020</color>   <!-- Dark blue-grey -->
+    <color name="surface_light">#1A1A2E</color>
+    
+    <!-- Accents: Calm, not alerting -->
+    <color name="primary_color">#5C5CFF</color> <!-- Soft Indigo -->
+    <color name="secondary_color">#7E57C2</color> <!-- Muted Purple -->
+    <color name="accent_error">#CF6679</color>
+    
+    <!-- Text -->
+    <color name="text_primary">#EAEAEA</color>
+    <color name="text_secondary">#8F9BB3</color>
+    <color name="text_hint">#505060</color>
+</resources>

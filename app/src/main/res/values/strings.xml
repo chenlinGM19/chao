@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Sleep Chaos</string>
+    <string name="title_main">Chaos Audio Player</string>
+    <string name="desc_main">Uses unpredictable pauses and volume fluctuations to violate psychological expectations and aid sleep.</string>
+    <string name="btn_select_file">Select Audio File</string>
+    <string name="btn_add_files">Add Audio/Video</string>
+    <string name="btn_clear_list">Clear List</string>
+    <string name="label_playlist">Playlist (%1$d files)</string>
+    <string name="no_file_selected">No files added yet.</string>
+    <string name="label_timer">Stop after (minutes):</string>
+    <string name="btn_start">Start Chaos</string>
+    <string name="btn_stop">Stop</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="status_playing">Status: Active</string>
+    <string name="notification_channel_name">Sleep Chaos Service</string>
+    <string name="notification_title">Sleep Chaos Running</string>
+    <string name="notification_desc">Generating audio patterns...</string>
+    <string name="permission_rationale">This app needs storage access to play your audio files and notification access to run in the background.</string>
+</resources>
