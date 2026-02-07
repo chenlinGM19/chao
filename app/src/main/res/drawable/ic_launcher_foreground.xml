@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Outer Metallic Ring -->
+    <path
+        android:pathData="M54,54m-30,0a30,30 0 1,1 60,0a30,30 0 1,1 -60,0">
+        <aapt:attr name="android:fillColor">
+            <gradient 
+                android:centerX="54" android:centerY="54"
+                android:gradientRadius="30"
+                android:type="radial">
+                <item android:offset="0.85" android:color="#FFE5E5EA"/>
+                <item android:offset="1.0" android:color="#FFAEAEB2"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Inner Black Barrel -->
+    <path
+        android:fillColor="#FF1C1C1E"
+        android:pathData="M54,54m-26,0a26,26 0 1,1 52,0a26,26 0 1,1 -52,0"/>
+
+    <!-- Lens Glass (Dark Blue Gradient) -->
+    <path
+        android:pathData="M54,54m-22,0a22,22 0 1,1 44,0a22,22 0 1,1 -44,0">
+        <aapt:attr name="android:fillColor">
+            <gradient 
+                android:centerX="54" android:centerY="54"
+                android:gradientRadius="22"
+                android:type="radial">
+                <item android:offset="0.0" android:color="#FF0A2A5E"/>
+                <item android:offset="1.0" android:color="#FF000000"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Aperture Blades -->
+    <path
+        android:fillColor="#FF3A3A3C"
+        android:pathData="M54,54 m-6,-10 l12,0 l6,10 l-6,10 l-12,0 l-6,-10 z"/>
+
+    <!-- Glass Reflection / Glint -->
+    <path
+        android:fillColor="#4DFFFFFF"
+        android:pathData="M60,40 Q68,40 70,48 Q65,42 60,40 z"/>
+        
+    <!-- Red Recording Dot (Pro Indicator) -->
+    <path
+        android:fillColor="#FFFF3B30"
+        android:pathData="M78,78m-3,0a3,3 0 1,1 6,0a3,3 0 1,1 -6,0"/>
+</vector>

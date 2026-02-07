@@ -1,0 +1,1 @@
+// File removed. This project is now a native Android application.
