@@ -26,7 +26,10 @@ public class AudioExporter {
         void onError(String error);
     }
 
-    public static void exportChaosAudio(Context context, Uri sourceUri, int durationMins, int mode, ExportCallback callback) {
+    public static void exportChaosAudio(Context context, Uri sourceUri, int durationMins, 
+                                        int playLevel, int pauseLevel, 
+                                        float minVol, float maxVol, int volFreq,
+                                        ExportCallback callback) {
         new Thread(() -> {
             MediaExtractor extractor = new MediaExtractor();
             MediaCodec decoder = null;
@@ -56,7 +59,6 @@ public class AudioExporter {
                 File outFile = new File(appDir, "chaos_mix_" + System.currentTimeMillis() + ".wav");
                 raf = new RandomAccessFile(outFile, "rw");
 
-                // Write WAV Header placeholder
                 writeWavHeader(raf, 0, SAMPLE_RATE, CHANNELS, BIT_DEPTH);
 
                 // 4. Processing Loop
@@ -68,44 +70,46 @@ public class AudioExporter {
                 boolean outputDone = false;
                 Random random = new Random();
 
-                // State Machine for Chaos
+                // State Machine for Chaos Play/Pause
                 boolean isPlaying = true;
                 long stateEndTimeBytes = 0;
-                
-                // Initialize first state duration
-                long currentSegmentBytes = msToBytes(ChaosService.getPlayDurationForMode(mode));
+                long currentSegmentBytes = msToBytes(ChaosService.getPlayDuration(playLevel));
                 stateEndTimeBytes = currentSegmentBytes;
+
+                // State Machine for Volume Drift
+                float currentVolume = (minVol + maxVol) / 2;
+                float targetVolume = currentVolume;
+                long volumeDriftBytesRemaining = 0;
+                float volumeStepPerByte = 0;
 
                 while (!outputDone && totalBytesWritten < targetDurationBytes) {
                     
-                    // State Management
+                    // State Management (Play vs Pause)
                     if (totalBytesWritten >= stateEndTimeBytes) {
                         isPlaying = !isPlaying; // Toggle Play/Pause
                         long nextDurationMs = isPlaying ? 
-                                ChaosService.getPlayDurationForMode(mode) : 
-                                ChaosService.getPauseDurationForMode(mode);
+                                ChaosService.getPlayDuration(playLevel) : 
+                                ChaosService.getPauseDuration(pauseLevel);
                         stateEndTimeBytes += msToBytes(nextDurationMs);
-                        Log.d(TAG, "Switched state. Playing: " + isPlaying + " Duration: " + nextDurationMs);
                     }
 
                     if (!isPlaying) {
-                        // PAUSE STATE: Write Silence
+                        // PAUSE STATE
                         int silenceChunk = 4096;
                         byte[] silence = new byte[silenceChunk];
                         raf.write(silence);
                         totalBytesWritten += silenceChunk;
                     } else {
-                        // PLAY STATE: Read from Decoder
+                        // PLAY STATE
                         if (!inputDone) {
                             int inputIndex = decoder.dequeueInputBuffer(10000);
                             if (inputIndex >= 0) {
                                 ByteBuffer inputBuffer = decoder.getInputBuffer(inputIndex);
                                 int sampleSize = extractor.readSampleData(inputBuffer, 0);
                                 if (sampleSize < 0) {
-                                    // Loop source if it ends before target duration
                                     extractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
                                     sampleSize = extractor.readSampleData(inputBuffer, 0);
-                                    if (sampleSize < 0) { // Still empty? File issue.
+                                    if (sampleSize < 0) {
                                         inputDone = true;
                                         decoder.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                                     } else {
@@ -126,10 +130,32 @@ public class AudioExporter {
                             outputBuffer.get(chunk);
                             outputBuffer.clear();
 
-                            // Variable Volume Logic: Apply random volume to chunk
-                            // (Simplified: one volume per chunk for efficiency)
-                            float volume = 0.3f + (random.nextFloat() * 0.7f);
-                            chunk = adjustVolume(chunk, volume);
+                            // Volume Drift Logic
+                            if (volumeDriftBytesRemaining <= 0) {
+                                // Pick new target volume and duration based on freq
+                                float range = maxVol - minVol;
+                                targetVolume = minVol + (random.nextFloat() * range);
+                                
+                                int baseDelay = 30000 - ((volFreq - 1) * 3000);
+                                if (baseDelay < 2000) baseDelay = 2000;
+                                int variance = baseDelay / 2;
+                                int driftDurationMs = baseDelay / 2 + random.nextInt(variance);
+                                
+                                volumeDriftBytesRemaining = msToBytes(driftDurationMs);
+                                float volDiff = targetVolume - currentVolume;
+                                volumeStepPerByte = volDiff / volumeDriftBytesRemaining;
+                            }
+
+                            // Apply volume with interpolation
+                            chunk = adjustVolumeSmooth(chunk, currentVolume, volumeStepPerByte);
+                            
+                            // Update volume state
+                            currentVolume += (volumeStepPerByte * chunk.length);
+                            volumeDriftBytesRemaining -= chunk.length;
+                            
+                            // Clamp
+                            if (currentVolume > 1.0f) currentVolume = 1.0f;
+                            if (currentVolume < 0.0f) currentVolume = 0.0f;
 
                             raf.write(chunk);
                             totalBytesWritten += chunk.length;
@@ -168,25 +194,36 @@ public class AudioExporter {
     }
 
     private static long msToBytes(long ms) {
-        // bytes = ms * (SampleRate * Channels * Bits/8) / 1000
         return (ms * SAMPLE_RATE * CHANNELS * 2) / 1000;
     }
 
-    private static byte[] adjustVolume(byte[] pcmData, float volume) {
+    // Process chunk while interpolating volume to avoid steps/clicks
+    private static byte[] adjustVolumeSmooth(byte[] pcmData, float startVolume, float stepPerByte) {
         byte[] adjusted = new byte[pcmData.length];
+        float currentVol = startVolume;
+        
         // 16-bit PCM processing
         for (int i = 0; i < pcmData.length; i += 2) {
             short sample = (short) ((pcmData[i] & 0xFF) | (pcmData[i + 1] << 8));
-            sample = (short) (sample * volume);
+            
+            // Linear to Log approximation for better perception? 
+            // Standard AudioTrack uses linear, but perception is log. 
+            // We apply linear here for simplicity in raw PCM math, matching "setVolume".
+            // To match Service "setLogarithmicVolume", we should square it.
+            float logVol = currentVol * currentVol;
+            
+            sample = (short) (sample * logVol);
             adjusted[i] = (byte) (sample & 0xFF);
             adjusted[i + 1] = (byte) ((sample >> 8) & 0xFF);
+            
+            currentVol += (stepPerByte * 2); 
         }
         return adjusted;
     }
 
     private static void writeWavHeader(RandomAccessFile out, long totalAudioLen, long longSampleRate, int channels, long byteRate) throws IOException {
         long totalDataLen = totalAudioLen + 36;
-        long bitrate = longSampleRate * channels * byteRate / 8; // Actually ByteRate
+        long bitrate = longSampleRate * channels * byteRate / 8;
         
         byte[] header = new byte[44];
         header[0] = 'R'; header[1] = 'I'; header[2] = 'F'; header[3] = 'F';

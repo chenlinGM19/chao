@@ -8,14 +8,13 @@
     <string name="label_playlist">Playlist (%1$d files)</string>
     <string name="no_file_selected">No files added yet.</string>
     <string name="label_timer">Stop after (minutes):</string>
-    <string name="label_mode">Intermittence Level (1-10):</string>
-    <string name="mode_pattern">Level %1$d: %2$s</string>
-    <string name="mode_desc_rapid">Rapid (Short Pauses)</string>
-    <string name="mode_desc_moderate">Moderate</string>
-    <string name="mode_desc_balanced">Balanced</string>
-    <string name="mode_desc_relaxed">Relaxed</string>
-    <string name="mode_desc_slow">Slow</string>
-    <string name="mode_desc_sparse">Sparse (Long Pauses)</string>
+    
+    <string name="label_play_dur">Play Duration (Active Time)</string>
+    <string name="label_pause_dur">Pause Duration (Silence Time)</string>
+    <string name="val_format_sec">~%d sec</string>
+    <string name="val_format_min">~%d min</string>
+    <string name="val_format_mixed">~%dm %ds</string>
+
     <string name="btn_start">Start Chaos</string>
     <string name="btn_stop">Stop</string>
     <string name="btn_export">Export Audio</string>
@@ -28,4 +27,16 @@
     <string name="export_start">Starting export...</string>
     <string name="export_success">Export saved to Music/SleepChaos</string>
     <string name="export_error">Export failed: %s</string>
+    
+    <string name="state_active">Active Phase</string>
+    <string name="state_silence">Silence Phase</string>
+    <string name="time_remaining">%02d:%02d remaining</string>
+
+    <!-- New Volume Configuration Strings -->
+    <string name="label_vol_config">Volume Chaos Configuration</string>
+    <string name="label_vol_range">Volume Range (Min - Max)</string>
+    <string name="label_vol_freq">Fluctuation Frequency</string>
+    <string name="vol_freq_slow">Slow</string>
+    <string name="vol_freq_fast">Fast</string>
+    <string name="val_vol_range">%d%% - %d%%</string>
 </resources>

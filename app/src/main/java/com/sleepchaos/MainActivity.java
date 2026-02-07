@@ -26,6 +26,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
+import com.google.android.material.slider.RangeSlider;
 import com.google.android.material.slider.Slider;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,14 +47,23 @@ public class MainActivity extends AppCompatActivity {
 
     private ArrayList<AudioItem> playlist = new ArrayList<>();
     private FileAdapter fileAdapter;
+    
     private TextView tvTimerValue;
-    private TextView tvModeValue;
+    private TextView tvPlayDurValue;
+    private TextView tvPauseDurValue;
     private TextView tvPlaylistHeader;
+    private TextView tvVolRangeValue;
+    
     private View layoutEmptyState;
     private ExtendedFloatingActionButton btnAction;
     private MaterialButton btnExport;
+    
     private Slider sliderTimer;
-    private Slider sliderMode;
+    private Slider sliderPlayDur;
+    private Slider sliderPauseDur;
+    private RangeSlider sliderVolRange;
+    private Slider sliderVolFreq;
+    
     private boolean isPlaying = false;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
@@ -90,12 +100,20 @@ public class MainActivity extends AppCompatActivity {
         // Bind Views
         tvPlaylistHeader = findViewById(R.id.tvPlaylistHeader);
         tvTimerValue = findViewById(R.id.tvTimerValue);
-        tvModeValue = findViewById(R.id.tvModeValue);
+        tvPlayDurValue = findViewById(R.id.tvPlayDurValue);
+        tvPauseDurValue = findViewById(R.id.tvPauseDurValue);
+        tvVolRangeValue = findViewById(R.id.tvVolRangeValue);
+        
         layoutEmptyState = findViewById(R.id.layoutEmptyState);
         btnAction = findViewById(R.id.btnAction);
         btnExport = findViewById(R.id.btnExport);
+        
         sliderTimer = findViewById(R.id.sliderTimer);
-        sliderMode = findViewById(R.id.sliderMode);
+        sliderPlayDur = findViewById(R.id.sliderPlayDur);
+        sliderPauseDur = findViewById(R.id.sliderPauseDur);
+        sliderVolRange = findViewById(R.id.sliderVolRange);
+        sliderVolFreq = findViewById(R.id.sliderVolFreq);
+        
         View btnAddFiles = findViewById(R.id.btnAddFiles);
         View btnClear = findViewById(R.id.btnClear);
         RecyclerView recyclerView = findViewById(R.id.recyclerViewFiles);
@@ -142,25 +160,38 @@ public class MainActivity extends AppCompatActivity {
             else tvTimerValue.setText(mins + " min");
         });
         
-        sliderMode.addOnChangeListener((slider, value, fromUser) -> {
-            updateModeLabel((int) value);
+        sliderPlayDur.addOnChangeListener((slider, value, fromUser) -> updatePlayDurLabel((int)value));
+        sliderPauseDur.addOnChangeListener((slider, value, fromUser) -> updatePauseDurLabel((int)value));
+        
+        sliderVolRange.addOnChangeListener((slider, value, fromUser) -> {
+            List<Float> values = slider.getValues();
+            int min = Math.round(values.get(0));
+            int max = Math.round(values.get(1));
+            tvVolRangeValue.setText(String.format(getString(R.string.val_vol_range), min, max));
         });
-        updateModeLabel(5); // Default
+        
+        updatePlayDurLabel(5);
+        updatePauseDurLabel(5);
 
         btnAction.setOnClickListener(v -> togglePlayback());
         
         btnExport.setOnClickListener(v -> performExport());
     }
     
-    private void updateModeLabel(int mode) {
-        String desc;
-        if (mode <= 2) desc = getString(R.string.mode_desc_rapid);
-        else if (mode <= 4) desc = getString(R.string.mode_desc_moderate);
-        else if (mode <= 6) desc = getString(R.string.mode_desc_balanced);
-        else if (mode <= 8) desc = getString(R.string.mode_desc_slow);
-        else desc = getString(R.string.mode_desc_sparse);
-        
-        tvModeValue.setText(getString(R.string.mode_pattern, mode, desc));
+    private void updatePlayDurLabel(int level) {
+        long ms = ChaosService.getPlayDuration(level);
+        long sec = ms / 1000;
+        tvPlayDurValue.setText(String.format(getString(R.string.val_format_sec), sec));
+    }
+    
+    private void updatePauseDurLabel(int level) {
+        long ms = ChaosService.getPauseDuration(level);
+        long sec = ms / 1000;
+        if (sec < 60) {
+             tvPauseDurValue.setText(String.format(getString(R.string.val_format_sec), sec));
+        } else {
+             tvPauseDurValue.setText(String.format(getString(R.string.val_format_min), sec/60));
+        }
     }
 
     private void addUriToPlaylist(Uri uri) {
@@ -209,7 +240,6 @@ public class MainActivity extends AppCompatActivity {
         Intent serviceIntent = new Intent(this, ChaosService.class);
 
         if (!isPlaying) {
-            // Filter only selected items
             List<Uri> selectedUris = new ArrayList<>();
             for (AudioItem item : playlist) {
                 if (item.isSelected) selectedUris.add(item.uri);
@@ -232,7 +262,14 @@ public class MainActivity extends AppCompatActivity {
             serviceIntent.setAction(ChaosService.ACTION_START);
             serviceIntent.putStringArrayListExtra(ChaosService.EXTRA_URI_LIST, uriStrings);
             serviceIntent.putExtra(ChaosService.EXTRA_DURATION_MINS, (int) sliderTimer.getValue());
-            serviceIntent.putExtra(ChaosService.EXTRA_INTENSITY_MODE, (int) sliderMode.getValue());
+            serviceIntent.putExtra(ChaosService.EXTRA_PLAY_LEVEL, (int) sliderPlayDur.getValue());
+            serviceIntent.putExtra(ChaosService.EXTRA_PAUSE_LEVEL, (int) sliderPauseDur.getValue());
+            
+            // Pass Volume config
+            List<Float> volRange = sliderVolRange.getValues();
+            serviceIntent.putExtra(ChaosService.EXTRA_MIN_VOL, volRange.get(0) / 100f);
+            serviceIntent.putExtra(ChaosService.EXTRA_MAX_VOL, volRange.get(1) / 100f);
+            serviceIntent.putExtra(ChaosService.EXTRA_VOL_FREQ, (int) sliderVolFreq.getValue());
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent);
@@ -255,21 +292,25 @@ public class MainActivity extends AppCompatActivity {
             btnAction.setText(R.string.btn_stop);
             btnAction.setIconResource(android.R.drawable.ic_media_pause);
             btnAction.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.accent_error));
-            sliderMode.setEnabled(false);
-            sliderTimer.setEnabled(false);
-            btnExport.setEnabled(false);
+            setControlsEnabled(false);
         } else {
             btnAction.setText(R.string.btn_start);
             btnAction.setIconResource(android.R.drawable.ic_media_play);
             btnAction.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.primary_color));
-            sliderMode.setEnabled(true);
-            sliderTimer.setEnabled(true);
-            btnExport.setEnabled(true);
+            setControlsEnabled(true);
         }
+    }
+    
+    private void setControlsEnabled(boolean enabled) {
+        sliderPlayDur.setEnabled(enabled);
+        sliderPauseDur.setEnabled(enabled);
+        sliderTimer.setEnabled(enabled);
+        sliderVolRange.setEnabled(enabled);
+        sliderVolFreq.setEnabled(enabled);
+        btnExport.setEnabled(enabled);
     }
 
     private void performExport() {
-        // Find first selected item
         Uri source = null;
         for (AudioItem item : playlist) {
             if (item.isSelected) {
@@ -288,14 +329,20 @@ public class MainActivity extends AppCompatActivity {
         }
 
         int duration = (int) sliderTimer.getValue();
-        int mode = (int) sliderMode.getValue();
+        int playLevel = (int) sliderPlayDur.getValue();
+        int pauseLevel = (int) sliderPauseDur.getValue();
+        
+        List<Float> volRange = sliderVolRange.getValues();
+        float minVol = volRange.get(0) / 100f;
+        float maxVol = volRange.get(1) / 100f;
+        int volFreq = (int) sliderVolFreq.getValue();
 
-        if (duration == 0) duration = 10; // Default 10 min if infinite selected for export
+        if (duration == 0) duration = 10; 
 
         Toast.makeText(this, R.string.export_start, Toast.LENGTH_LONG).show();
         btnExport.setEnabled(false);
 
-        AudioExporter.exportChaosAudio(this, source, duration, mode, new AudioExporter.ExportCallback() {
+        AudioExporter.exportChaosAudio(this, source, duration, playLevel, pauseLevel, minVol, maxVol, volFreq, new AudioExporter.ExportCallback() {
             @Override
             public void onSuccess(String path) {
                 runOnUiThread(() -> {
@@ -333,22 +380,10 @@ public class MainActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull FileViewHolder holder, int position) {
             AudioItem item = items.get(position);
             holder.tvFileName.setText(getFileName(item.uri));
-            
-            // Remove previous listener to avoid recycling issues
             holder.chkSelected.setOnCheckedChangeListener(null);
             holder.chkSelected.setChecked(item.isSelected);
-            
-            holder.chkSelected.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                item.isSelected = isChecked;
-            });
-
-            // Make clicking the row toggle selection for better UX
-            holder.itemView.setOnClickListener(v -> {
-                holder.chkSelected.toggle();
-            });
-
-            holder.itemView.setAlpha(0f);
-            holder.itemView.animate().alpha(1f).setDuration(300).start();
+            holder.chkSelected.setOnCheckedChangeListener((buttonView, isChecked) -> item.isSelected = isChecked);
+            holder.itemView.setOnClickListener(v -> holder.chkSelected.toggle());
         }
 
         @Override
@@ -359,7 +394,6 @@ public class MainActivity extends AppCompatActivity {
         class FileViewHolder extends RecyclerView.ViewHolder {
             TextView tvFileName;
             CheckBox chkSelected;
-
             FileViewHolder(View itemView) {
                 super(itemView);
                 tvFileName = itemView.findViewById(R.id.tvFileName);
