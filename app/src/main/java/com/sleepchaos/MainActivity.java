@@ -33,10 +33,12 @@ public class MainActivity extends AppCompatActivity {
     private ArrayList<Uri> playlistUris = new ArrayList<>();
     private FileAdapter fileAdapter;
     private TextView tvTimerValue;
+    private TextView tvModeValue;
     private TextView tvPlaylistHeader;
     private View layoutEmptyState;
     private ExtendedFloatingActionButton btnAction;
     private Slider sliderTimer;
+    private Slider sliderMode;
     private boolean isPlaying = false;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
@@ -73,9 +75,11 @@ public class MainActivity extends AppCompatActivity {
         // Bind Views
         tvPlaylistHeader = findViewById(R.id.tvPlaylistHeader);
         tvTimerValue = findViewById(R.id.tvTimerValue);
+        tvModeValue = findViewById(R.id.tvModeValue);
         layoutEmptyState = findViewById(R.id.layoutEmptyState);
         btnAction = findViewById(R.id.btnAction);
         sliderTimer = findViewById(R.id.sliderTimer);
+        sliderMode = findViewById(R.id.sliderMode);
         View btnAddFiles = findViewById(R.id.btnAddFiles);
         View btnClear = findViewById(R.id.btnClear);
         RecyclerView recyclerView = findViewById(R.id.recyclerViewFiles);
@@ -121,8 +125,23 @@ public class MainActivity extends AppCompatActivity {
             if (mins == 0) tvTimerValue.setText("Infinite");
             else tvTimerValue.setText(mins + " min");
         });
+        
+        sliderMode.addOnChangeListener((slider, value, fromUser) -> {
+            updateModeLabel((int) value);
+        });
+        updateModeLabel(3); // Default
 
         btnAction.setOnClickListener(v -> togglePlayback());
+    }
+    
+    private void updateModeLabel(int mode) {
+        switch (mode) {
+            case 1: tvModeValue.setText(R.string.mode_1); break;
+            case 2: tvModeValue.setText(R.string.mode_2); break;
+            case 3: tvModeValue.setText(R.string.mode_3); break;
+            case 4: tvModeValue.setText(R.string.mode_4); break;
+            case 5: tvModeValue.setText(R.string.mode_5); break;
+        }
     }
 
     private void addUriToPlaylist(Uri uri) {
@@ -185,6 +204,7 @@ public class MainActivity extends AppCompatActivity {
             serviceIntent.setAction(ChaosService.ACTION_START);
             serviceIntent.putStringArrayListExtra(ChaosService.EXTRA_URI_LIST, uriStrings);
             serviceIntent.putExtra(ChaosService.EXTRA_DURATION_MINS, (int) sliderTimer.getValue());
+            serviceIntent.putExtra(ChaosService.EXTRA_INTENSITY_MODE, (int) sliderMode.getValue());
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent);
@@ -193,16 +213,28 @@ public class MainActivity extends AppCompatActivity {
             }
 
             isPlaying = true;
-            btnAction.setText(R.string.btn_stop);
-            btnAction.setIconResource(android.R.drawable.ic_media_pause);
-            btnAction.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.accent_error));
+            toggleButtonState(true);
         } else {
             serviceIntent.setAction(ChaosService.ACTION_STOP);
             startService(serviceIntent);
             isPlaying = false;
+            toggleButtonState(false);
+        }
+    }
+    
+    private void toggleButtonState(boolean playing) {
+        if (playing) {
+            btnAction.setText(R.string.btn_stop);
+            btnAction.setIconResource(android.R.drawable.ic_media_pause);
+            btnAction.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.accent_error));
+            sliderMode.setEnabled(false);
+            sliderTimer.setEnabled(false);
+        } else {
             btnAction.setText(R.string.btn_start);
             btnAction.setIconResource(android.R.drawable.ic_media_play);
             btnAction.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.primary_color));
+            sliderMode.setEnabled(true);
+            sliderTimer.setEnabled(true);
         }
     }
 

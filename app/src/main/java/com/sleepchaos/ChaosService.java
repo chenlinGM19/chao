@@ -31,9 +31,10 @@ public class ChaosService extends Service implements AudioManager.OnAudioFocusCh
 
     public static final String ACTION_START = "ACTION_START";
     public static final String ACTION_STOP = "ACTION_STOP";
-    public static final String ACTION_PLAY_PAUSE = "ACTION_PLAY_PAUSE";
     public static final String EXTRA_URI_LIST = "EXTRA_URI_LIST";
     public static final String EXTRA_DURATION_MINS = "EXTRA_DURATION_MINS";
+    public static final String EXTRA_INTENSITY_MODE = "EXTRA_INTENSITY_MODE";
+    
     public static final String CHANNEL_ID = "ChaosServiceChannel";
     private static final float MAX_VOLUME = 1.0f;
 
@@ -43,7 +44,9 @@ public class ChaosService extends Service implements AudioManager.OnAudioFocusCh
     private CountDownTimer sleepTimer;
     private boolean isRunning = false;
     private boolean isPausedByFocus = false;
+    private boolean isInIntermittentPause = false; // True if we are in the "Pause" phase of chaos
     private float currentVolume = 0.5f;
+    private int selectedMode = 3; // Default 3
     
     private ArrayList<Uri> playlist = new ArrayList<>();
     private int currentTrackIndex = 0;
@@ -61,7 +64,7 @@ public class ChaosService extends Service implements AudioManager.OnAudioFocusCh
         random = new Random();
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         
-        // Prevent CPU from sleeping during silent intervals of the chaos logic
+        // Prevent CPU from sleeping during silent intervals
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SleepChaos:WakeLock");
         
@@ -73,17 +76,11 @@ public class ChaosService extends Service implements AudioManager.OnAudioFocusCh
         mediaSession = new MediaSessionCompat(this, "ChaosMediaSession");
         mediaSession.setCallback(new MediaSessionCompat.Callback() {
             @Override
-            public void onPlay() {
-                // Determine logic to resume or start
-            }
+            public void onPlay() { }
             @Override
-            public void onPause() {
-                stopChaos();
-            }
+            public void onPause() { stopChaos(); }
             @Override
-            public void onStop() {
-                stopChaos();
-            }
+            public void onStop() { stopChaos(); }
         });
         mediaSession.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
         mediaSession.setActive(true);
@@ -97,6 +94,7 @@ public class ChaosService extends Service implements AudioManager.OnAudioFocusCh
             if (ACTION_START.equals(action)) {
                 ArrayList<String> uriStrings = intent.getStringArrayListExtra(EXTRA_URI_LIST);
                 int durationMins = intent.getIntExtra(EXTRA_DURATION_MINS, 30);
+                selectedMode = intent.getIntExtra(EXTRA_INTENSITY_MODE, 3);
                 
                 if (uriStrings != null && !uriStrings.isEmpty()) {
                     playlist.clear();
@@ -136,21 +134,19 @@ public class ChaosService extends Service implements AudioManager.OnAudioFocusCh
         isRunning = true;
         currentTrackIndex = 0;
         
-        if (!wakeLock.isHeld()) wakeLock.acquire(120 * 60 * 1000L /* 2 hours max safety */);
+        if (!wakeLock.isHeld()) wakeLock.acquire(4 * 60 * 60 * 1000L); // 4 hours safety
 
-        updateNotification(true);
+        updateNotification();
         updateMediaSessionState(PlaybackStateCompat.STATE_PLAYING);
         
-        playTrack(currentTrackIndex);
-        scheduleNextEvent();
+        // Initial Play
+        startPlaybackPhase();
 
         if (durationMins > 0) {
             long millis = durationMins * 60 * 1000L;
             sleepTimer = new CountDownTimer(millis, 1000) {
                 @Override
-                public void onTick(long l) {
-                    // Update metadata if needed, or simple logging
-                }
+                public void onTick(long l) {}
                 @Override
                 public void onFinish() {
                     stopChaos();
@@ -159,7 +155,96 @@ public class ChaosService extends Service implements AudioManager.OnAudioFocusCh
         }
     }
 
-    private void updateNotification(boolean isPlaying) {
+    // Phase 1: Play Audio (Variable Volume)
+    private void startPlaybackPhase() {
+        if (!isRunning) return;
+        isInIntermittentPause = false;
+        
+        // Ensure player is ready
+        if (mediaPlayer == null || !mediaPlayer.isPlaying()) {
+            initAndPlayCurrentTrack();
+        }
+        
+        // Determine how long we play before pausing
+        // Modes: 1(Continuous/Rapid) -> 5(Deep/Sparse)
+        long playDuration = getPlayDurationForMode(selectedMode);
+        
+        // During playback, we also drift volume up and down
+        scheduleVolumeDrift(playDuration);
+        
+        Log.d("ChaosService", "Playing for: " + playDuration + "ms");
+        
+        chaosHandler.removeCallbacksAndMessages(null); // Clear old volume tasks
+        chaosHandler.postDelayed(this::startPausePhase, playDuration);
+    }
+    
+    // Phase 2: Pause Audio (Silence)
+    private void startPausePhase() {
+        if (!isRunning) return;
+        isInIntermittentPause = true;
+
+        // Fade out then pause
+        fadeVolume(currentVolume, 0.0f, 2000, () -> {
+             if (mediaPlayer != null && isRunning) {
+                 try { mediaPlayer.pause(); } catch (Exception e) {}
+             }
+        });
+        
+        // Determine how long we stay silent
+        long pauseDuration = getPauseDurationForMode(selectedMode);
+        
+        Log.d("ChaosService", "Pausing for: " + pauseDuration + "ms");
+        
+        chaosHandler.postDelayed(this::startPlaybackPhase, pauseDuration + 2000); // Add fade time
+    }
+
+    private long getPlayDurationForMode(int mode) {
+        // Mode 1: Long Play, Short Pause
+        // Mode 5: Short Play, Long Pause
+        int minSec, maxSec;
+        switch (mode) {
+            case 1: minSec = 45; maxSec = 120; break;
+            case 2: minSec = 30; maxSec = 90; break;
+            case 3: minSec = 20; maxSec = 60; break; 
+            case 4: minSec = 15; maxSec = 45; break;
+            case 5: minSec = 10; maxSec = 30; break;
+            default: minSec = 20; maxSec = 60; break;
+        }
+        // Add random variation
+        return (minSec + random.nextInt(maxSec - minSec + 1)) * 1000L;
+    }
+
+    private long getPauseDurationForMode(int mode) {
+        // Mode 1: Short Pause
+        // Mode 5: Long Pause (up to 5 mins)
+        int minSec, maxSec;
+        switch (mode) {
+            case 1: minSec = 5; maxSec = 15; break;
+            case 2: minSec = 10; maxSec = 30; break;
+            case 3: minSec = 20; maxSec = 60; break;
+            case 4: minSec = 45; maxSec = 180; break; // 45s to 3m
+            case 5: minSec = 60; maxSec = 300; break; // 1m to 5m
+            default: minSec = 20; maxSec = 60; break;
+        }
+        return (minSec + random.nextInt(maxSec - minSec + 1)) * 1000L;
+    }
+
+    private void scheduleVolumeDrift(long maxDurationAvailable) {
+        if (!isRunning || isInIntermittentPause) return;
+        
+        // Randomly change volume every few seconds while playing
+        float targetVol = 0.2f + (random.nextFloat() * 0.8f); // 0.2 to 1.0
+        int fadeTime = 2000 + random.nextInt(3000);
+        
+        fadeVolume(currentVolume, targetVol, fadeTime, null);
+        
+        int nextDriftDelay = fadeTime + 5000 + random.nextInt(10000);
+        if (nextDriftDelay < maxDurationAvailable) {
+            chaosHandler.postDelayed(() -> scheduleVolumeDrift(maxDurationAvailable - nextDriftDelay), nextDriftDelay);
+        }
+    }
+
+    private void updateNotification() {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         
@@ -189,11 +274,8 @@ public class ChaosService extends Service implements AudioManager.OnAudioFocusCh
                 .build());
     }
 
-    private void playTrack(int index) {
-        if (!isRunning || playlist.isEmpty()) return;
-        
-        if (index >= playlist.size()) index = 0;
-        currentTrackIndex = index;
+    private void initAndPlayCurrentTrack() {
+        if (playlist.isEmpty()) return;
         
         try {
             if (mediaPlayer != null) {
@@ -207,84 +289,37 @@ public class ChaosService extends Service implements AudioManager.OnAudioFocusCh
                             .build()
             );
             
-            mediaPlayer.setDataSource(this, playlist.get(currentTrackIndex));
-            mediaPlayer.setOnCompletionListener(mp -> playTrack(currentTrackIndex + 1));
+            Uri uri = playlist.get(currentTrackIndex);
+            mediaPlayer.setDataSource(this, uri);
+            mediaPlayer.setOnCompletionListener(mp -> {
+                // Next track logic
+                currentTrackIndex = (currentTrackIndex + 1) % playlist.size();
+                initAndPlayCurrentTrack(); 
+            });
             mediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
             mediaPlayer.prepare();
-            setLogarithmicVolume(currentVolume);
+            setLogarithmicVolume(0); // Start silent
             mediaPlayer.start();
+            
+            // Fade in
+            float initialVol = 0.3f + (random.nextFloat() * 0.4f);
+            fadeVolume(0, initialVol, 2000, null);
             
         } catch (Exception e) {
             Log.e("ChaosService", "Error playing track", e);
-            chaosHandler.postDelayed(() -> playTrack(currentTrackIndex + 1), 2000);
         }
-    }
-
-    private void scheduleNextEvent() {
-        if (!isRunning) return;
-
-        // Algorithm:
-        // 0-1: Drift to silence (Deep pause)
-        // 2-3: Micro pause (Brief silence)
-        // 4-9: Volume drift (Change intensity)
-        
-        int decision = random.nextInt(10);
-        long delayToNextEvent;
-
-        if (decision < 2) { 
-            // Deep Pause: Fade out completely, wait, then fade in next track/resume
-            long pauseDuration = 10000 + random.nextInt(40000); // 10s - 50s
-            fadeVolumeTo(0.0f, 3000, () -> {
-                if (mediaPlayer != null) {
-                     try { mediaPlayer.pause(); } catch (Exception e) {}
-                }
-            });
-            delayToNextEvent = pauseDuration + 3000;
-            
-        } else if (decision < 3) {
-            // Micro Pause: Just a dip
-            long pauseDuration = 2000 + random.nextInt(5000);
-            fadeVolumeTo(0.05f, 1000, null); // Don't stop, just get very quiet
-            delayToNextEvent = pauseDuration + 1000;
-
-        } else {
-            // Volume Drift: Ensure playback and change volume
-            if (mediaPlayer != null) {
-                try {
-                    if (!mediaPlayer.isPlaying()) {
-                        mediaPlayer.start();
-                        mediaPlayer.setVolume(0, 0); // Start silent then ramp up
-                    }
-                } catch (Exception e) {}
-            }
-
-            // Generate a random volume between 0.2 and 0.8
-            // We avoid 1.0 to keep it non-jarring
-            float targetVol = 0.2f + (random.nextFloat() * 0.6f);
-            
-            // Random fade duration: 2s to 8s (Slow drifts are more sleep inducing)
-            int fadeDuration = 2000 + random.nextInt(6000);
-            
-            fadeVolumeTo(targetVol, fadeDuration, null);
-            delayToNextEvent = fadeDuration + 5000 + random.nextInt(20000);
-        }
-
-        chaosHandler.postDelayed(this::scheduleNextEvent, delayToNextEvent);
     }
     
-    // Smooth logarithmic fade
-    private void fadeVolumeTo(float target, int durationMs, Runnable onComplete) {
-        final int fps = 20; 
-        final int steps = (durationMs / 1000) * fps;
+    private void fadeVolume(float from, float to, int durationMs, Runnable onComplete) {
+        final int steps = 20;
         final long stepDelay = durationMs / steps;
-        final float startVol = currentVolume;
-        final float diff = target - startVol;
+        final float diff = to - from;
 
         new Thread(() -> {
             for (int i = 1; i <= steps; i++) {
                 if (!isRunning) return;
                 float progress = (float) i / steps;
-                float newVol = startVol + (diff * progress);
+                float newVol = from + (diff * progress);
                 
                 chaosHandler.post(() -> {
                     if (mediaPlayer != null) {
@@ -301,18 +336,11 @@ public class ChaosService extends Service implements AudioManager.OnAudioFocusCh
         }).start();
     }
     
-    // Convert linear 0.0-1.0 to logarithmic decibel-like perception
     private void setLogarithmicVolume(float rawVolume) {
         if (mediaPlayer == null) return;
-        // Simple approximation: Volume = raw^3
-        float logVol = (float) (1 - (Math.log(MAX_VOLUME - rawVolume) / Math.log(MAX_VOLUME)));
-        // Better approximation for Android MediaPlayer:
-        float volume = (float) (1 - (Math.log(100 - (rawVolume * 100)) / Math.log(100)));
-        if (volume < 0) volume = 0;
-        if (volume > 1) volume = 1;
-        
-        // Actually, simple power curve is often safer/smoother for fades
         float powerVol = (float) Math.pow(rawVolume, 2.5);
+        if (powerVol > 1.0f) powerVol = 1.0f;
+        if (powerVol < 0.0f) powerVol = 0.0f;
         mediaPlayer.setVolume(powerVol, powerVol);
     }
 
@@ -364,20 +392,17 @@ public class ChaosService extends Service implements AudioManager.OnAudioFocusCh
     public void onAudioFocusChange(int focusChange) {
         switch (focusChange) {
             case AudioManager.AUDIOFOCUS_LOSS:
-                // Permanent loss (e.g., other music app started)
                 stopChaos();
                 break;
             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
-                // Transient loss (e.g., notification or phone call)
                 if (mediaPlayer != null && mediaPlayer.isPlaying()) {
                     mediaPlayer.pause();
                     isPausedByFocus = true;
                 }
                 break;
             case AudioManager.AUDIOFOCUS_GAIN:
-                // Regained focus
-                if (isPausedByFocus && isRunning) {
+                if (isPausedByFocus && isRunning && !isInIntermittentPause) {
                     if (mediaPlayer != null) mediaPlayer.start();
                     isPausedByFocus = false;
                 }

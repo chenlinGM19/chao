@@ -143,6 +143,58 @@
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 app:cornerRadius="12dp" />
 
+            <!-- Mode Selection (Intermittence) -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/label_mode"
+                android:textColor="@color/secondary_color"
+                android:textAllCaps="true"
+                android:letterSpacing="0.1"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="16dp"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_panel"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Pattern"
+                    android:textColor="@color/text_primary"/>
+
+                <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1"/>
+
+                <TextView
+                    android:id="@+id/tvModeValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/mode_3"
+                    android:textColor="@color/primary_color"
+                    android:textStyle="bold"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
+            <com.google.android.material.slider.Slider
+                android:id="@+id/sliderMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="-8dp"
+                android:valueFrom="1"
+                android:valueTo="5"
+                android:value="3"
+                android:stepSize="1"
+                app:tickVisible="true"
+                app:thumbColor="@color/primary_color"
+                app:trackColorActive="@color/primary_color"
+                app:trackColorInactive="@color/surface_light" />
+
             <!-- Timer Section -->
             <TextView
                 android:layout_width="wrap_content"
@@ -153,6 +205,7 @@
                 android:letterSpacing="0.1"
                 android:textSize="12sp"
                 android:textStyle="bold" 
+                android:layout_marginTop="24dp"
                 android:layout_marginBottom="16dp"/>
 
             <LinearLayout
