@@ -4,4 +4,12 @@
         <item>20</item>
         <item>80</item>
     </array>
+    <array name="initial_play_range">
+        <item>10</item>
+        <item>60</item>
+    </array>
+    <array name="initial_pause_range">
+        <item>5</item>
+        <item>20</item>
+    </array>
 </resources>

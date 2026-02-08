@@ -27,7 +27,8 @@ public class AudioExporter {
     }
 
     public static void exportChaosAudio(Context context, Uri sourceUri, int durationMins, 
-                                        int playLevel, int pauseLevel, 
+                                        int minPlaySec, int maxPlaySec, 
+                                        int minPauseSec, int maxPauseSec,
                                         float minVol, float maxVol, int volFreq,
                                         ExportCallback callback) {
         new Thread(() -> {
@@ -73,7 +74,8 @@ public class AudioExporter {
                 // State Machine for Chaos Play/Pause
                 boolean isPlaying = true;
                 long stateEndTimeBytes = 0;
-                long currentSegmentBytes = msToBytes(ChaosService.getPlayDuration(playLevel));
+                long initialDuration = (minPlaySec + random.nextInt(maxPlaySec - minPlaySec + 1)) * 1000L;
+                long currentSegmentBytes = msToBytes(initialDuration);
                 stateEndTimeBytes = currentSegmentBytes;
 
                 // State Machine for Volume Drift
@@ -87,9 +89,12 @@ public class AudioExporter {
                     // State Management (Play vs Pause)
                     if (totalBytesWritten >= stateEndTimeBytes) {
                         isPlaying = !isPlaying; // Toggle Play/Pause
-                        long nextDurationMs = isPlaying ? 
-                                ChaosService.getPlayDuration(playLevel) : 
-                                ChaosService.getPauseDuration(pauseLevel);
+                        long nextDurationMs;
+                        if (isPlaying) {
+                            nextDurationMs = (minPlaySec + random.nextInt(maxPlaySec - minPlaySec + 1)) * 1000L;
+                        } else {
+                            nextDurationMs = (minPauseSec + random.nextInt(maxPauseSec - minPauseSec + 1)) * 1000L;
+                        }
                         stateEndTimeBytes += msToBytes(nextDurationMs);
                     }
 

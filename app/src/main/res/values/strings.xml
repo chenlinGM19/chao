@@ -9,8 +9,15 @@
     <string name="no_file_selected">No files added yet.</string>
     <string name="label_timer">Stop after (minutes):</string>
     
-    <string name="label_play_dur">Play Duration (Active Time)</string>
-    <string name="label_pause_dur">Pause Duration (Silence Time)</string>
+    <!-- Mode Selection -->
+    <string name="mode_local">Local File</string>
+    <string name="mode_external">External App</string>
+    <string name="mode_external_hint">Controls other apps (e.g., Spotify, YouTube Music) by stealing focus and changing system volume.</string>
+    
+    <string name="label_play_dur">Play Duration Range</string>
+    <string name="label_pause_dur">Pause Duration Range</string>
+    
+    <string name="val_time_range">%ds - %ds</string>
     <string name="val_format_sec">~%d sec</string>
     <string name="val_format_min">~%d min</string>
     <string name="val_format_mixed">~%dm %ds</string>
@@ -32,7 +39,6 @@
     <string name="state_silence">Silence Phase</string>
     <string name="time_remaining">%02d:%02d remaining</string>
 
-    <!-- New Volume Configuration Strings -->
     <string name="label_vol_config">Volume Chaos Configuration</string>
     <string name="label_vol_range">Volume Range (Min - Max)</string>
     <string name="label_vol_freq">Fluctuation Frequency</string>

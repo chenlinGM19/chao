@@ -25,6 +25,7 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.slider.RangeSlider;
 import com.google.android.material.slider.Slider;
@@ -55,16 +56,22 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvVolRangeValue;
     
     private View layoutEmptyState;
+    private View containerPlaylist;
+    private TextView tvExternalHint;
+    
     private ExtendedFloatingActionButton btnAction;
     private MaterialButton btnExport;
     
     private Slider sliderTimer;
-    private Slider sliderPlayDur;
-    private Slider sliderPauseDur;
+    private RangeSlider sliderPlayDur;
+    private RangeSlider sliderPauseDur;
     private RangeSlider sliderVolRange;
     private Slider sliderVolFreq;
     
+    private MaterialButtonToggleGroup toggleMode;
+    
     private boolean isPlaying = false;
+    private boolean isExternalMode = false;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
@@ -105,6 +112,9 @@ public class MainActivity extends AppCompatActivity {
         tvVolRangeValue = findViewById(R.id.tvVolRangeValue);
         
         layoutEmptyState = findViewById(R.id.layoutEmptyState);
+        containerPlaylist = findViewById(R.id.containerPlaylist);
+        tvExternalHint = findViewById(R.id.tvExternalHint);
+        
         btnAction = findViewById(R.id.btnAction);
         btnExport = findViewById(R.id.btnExport);
         
@@ -113,6 +123,8 @@ public class MainActivity extends AppCompatActivity {
         sliderPauseDur = findViewById(R.id.sliderPauseDur);
         sliderVolRange = findViewById(R.id.sliderVolRange);
         sliderVolFreq = findViewById(R.id.sliderVolFreq);
+        
+        toggleMode = findViewById(R.id.toggleMode);
         
         View btnAddFiles = findViewById(R.id.btnAddFiles);
         View btnClear = findViewById(R.id.btnClear);
@@ -160,8 +172,19 @@ public class MainActivity extends AppCompatActivity {
             else tvTimerValue.setText(mins + " min");
         });
         
-        sliderPlayDur.addOnChangeListener((slider, value, fromUser) -> updatePlayDurLabel((int)value));
-        sliderPauseDur.addOnChangeListener((slider, value, fromUser) -> updatePauseDurLabel((int)value));
+        sliderPlayDur.addOnChangeListener((slider, value, fromUser) -> {
+            List<Float> values = slider.getValues();
+            int min = Math.round(values.get(0));
+            int max = Math.round(values.get(1));
+            tvPlayDurValue.setText(String.format(getString(R.string.val_time_range), min, max));
+        });
+        
+        sliderPauseDur.addOnChangeListener((slider, value, fromUser) -> {
+            List<Float> values = slider.getValues();
+            int min = Math.round(values.get(0));
+            int max = Math.round(values.get(1));
+            tvPauseDurValue.setText(String.format(getString(R.string.val_time_range), min, max));
+        });
         
         sliderVolRange.addOnChangeListener((slider, value, fromUser) -> {
             List<Float> values = slider.getValues();
@@ -170,28 +193,32 @@ public class MainActivity extends AppCompatActivity {
             tvVolRangeValue.setText(String.format(getString(R.string.val_vol_range), min, max));
         });
         
-        updatePlayDurLabel(5);
-        updatePauseDurLabel(5);
+        // Mode Toggle Listener
+        toggleMode.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (isChecked) {
+                if (checkedId == R.id.btnModeLocal) {
+                    isExternalMode = false;
+                    containerPlaylist.setVisibility(View.VISIBLE);
+                    tvExternalHint.setVisibility(View.GONE);
+                    btnExport.setVisibility(View.VISIBLE);
+                } else if (checkedId == R.id.btnModeExternal) {
+                    isExternalMode = true;
+                    containerPlaylist.setVisibility(View.GONE);
+                    tvExternalHint.setVisibility(View.VISIBLE);
+                    btnExport.setVisibility(View.GONE); // Exporting doesn't apply to external apps
+                }
+            }
+        });
+
+        // Initialize text
+        List<Float> playVals = sliderPlayDur.getValues();
+        tvPlayDurValue.setText(String.format(getString(R.string.val_time_range), Math.round(playVals.get(0)), Math.round(playVals.get(1))));
+        List<Float> pauseVals = sliderPauseDur.getValues();
+        tvPauseDurValue.setText(String.format(getString(R.string.val_time_range), Math.round(pauseVals.get(0)), Math.round(pauseVals.get(1))));
 
         btnAction.setOnClickListener(v -> togglePlayback());
         
         btnExport.setOnClickListener(v -> performExport());
-    }
-    
-    private void updatePlayDurLabel(int level) {
-        long ms = ChaosService.getPlayDuration(level);
-        long sec = ms / 1000;
-        tvPlayDurValue.setText(String.format(getString(R.string.val_format_sec), sec));
-    }
-    
-    private void updatePauseDurLabel(int level) {
-        long ms = ChaosService.getPauseDuration(level);
-        long sec = ms / 1000;
-        if (sec < 60) {
-             tvPauseDurValue.setText(String.format(getString(R.string.val_format_sec), sec));
-        } else {
-             tvPauseDurValue.setText(String.format(getString(R.string.val_format_min), sec/60));
-        }
     }
 
     private void addUriToPlaylist(Uri uri) {
@@ -240,33 +267,46 @@ public class MainActivity extends AppCompatActivity {
         Intent serviceIntent = new Intent(this, ChaosService.class);
 
         if (!isPlaying) {
-            List<Uri> selectedUris = new ArrayList<>();
-            for (AudioItem item : playlist) {
-                if (item.isSelected) selectedUris.add(item.uri);
-            }
-
-            if (selectedUris.isEmpty()) {
-                if (playlist.isEmpty()) {
-                    Toast.makeText(this, "Please add audio files first", Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(this, "Please select at least one track to play", Toast.LENGTH_SHORT).show();
+            
+            // Only validate playlist if in Local Mode
+            if (!isExternalMode) {
+                List<Uri> selectedUris = new ArrayList<>();
+                for (AudioItem item : playlist) {
+                    if (item.isSelected) selectedUris.add(item.uri);
                 }
-                return;
+
+                if (selectedUris.isEmpty()) {
+                    if (playlist.isEmpty()) {
+                        Toast.makeText(this, "Please add audio files first", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "Please select at least one track to play", Toast.LENGTH_SHORT).show();
+                    }
+                    return;
+                }
+                
+                ArrayList<String> uriStrings = new ArrayList<>();
+                for (Uri u : selectedUris) {
+                    uriStrings.add(u.toString());
+                }
+                serviceIntent.putStringArrayListExtra(ChaosService.EXTRA_URI_LIST, uriStrings);
             }
 
-            ArrayList<String> uriStrings = new ArrayList<>();
-            for (Uri u : selectedUris) {
-                uriStrings.add(u.toString());
-            }
+            // Get Ranges
+            List<Float> playRange = sliderPlayDur.getValues();
+            List<Float> pauseRange = sliderPauseDur.getValues();
+            List<Float> volRange = sliderVolRange.getValues();
 
             serviceIntent.setAction(ChaosService.ACTION_START);
-            serviceIntent.putStringArrayListExtra(ChaosService.EXTRA_URI_LIST, uriStrings);
+            serviceIntent.putExtra(ChaosService.EXTRA_IS_EXTERNAL_MODE, isExternalMode);
             serviceIntent.putExtra(ChaosService.EXTRA_DURATION_MINS, (int) sliderTimer.getValue());
-            serviceIntent.putExtra(ChaosService.EXTRA_PLAY_LEVEL, (int) sliderPlayDur.getValue());
-            serviceIntent.putExtra(ChaosService.EXTRA_PAUSE_LEVEL, (int) sliderPauseDur.getValue());
+            
+            // Pass Play/Pause ranges in seconds
+            serviceIntent.putExtra(ChaosService.EXTRA_PLAY_MIN_SEC, Math.round(playRange.get(0)));
+            serviceIntent.putExtra(ChaosService.EXTRA_PLAY_MAX_SEC, Math.round(playRange.get(1)));
+            serviceIntent.putExtra(ChaosService.EXTRA_PAUSE_MIN_SEC, Math.round(pauseRange.get(0)));
+            serviceIntent.putExtra(ChaosService.EXTRA_PAUSE_MAX_SEC, Math.round(pauseRange.get(1)));
             
             // Pass Volume config
-            List<Float> volRange = sliderVolRange.getValues();
             serviceIntent.putExtra(ChaosService.EXTRA_MIN_VOL, volRange.get(0) / 100f);
             serviceIntent.putExtra(ChaosService.EXTRA_MAX_VOL, volRange.get(1) / 100f);
             serviceIntent.putExtra(ChaosService.EXTRA_VOL_FREQ, (int) sliderVolFreq.getValue());
@@ -307,10 +347,21 @@ public class MainActivity extends AppCompatActivity {
         sliderTimer.setEnabled(enabled);
         sliderVolRange.setEnabled(enabled);
         sliderVolFreq.setEnabled(enabled);
-        btnExport.setEnabled(enabled);
+        
+        // Only enable toggle if stopped
+        for(int i = 0; i < toggleMode.getChildCount(); i++) {
+            toggleMode.getChildAt(i).setEnabled(enabled);
+        }
+        
+        // Export only enabled in Local mode
+        if (!isExternalMode) {
+             btnExport.setEnabled(enabled);
+        }
     }
 
     private void performExport() {
+        if (isExternalMode) return; 
+
         Uri source = null;
         for (AudioItem item : playlist) {
             if (item.isSelected) {
@@ -329,10 +380,16 @@ public class MainActivity extends AppCompatActivity {
         }
 
         int duration = (int) sliderTimer.getValue();
-        int playLevel = (int) sliderPlayDur.getValue();
-        int pauseLevel = (int) sliderPauseDur.getValue();
         
+        List<Float> playRange = sliderPlayDur.getValues();
+        List<Float> pauseRange = sliderPauseDur.getValues();
         List<Float> volRange = sliderVolRange.getValues();
+        
+        int minPlay = Math.round(playRange.get(0));
+        int maxPlay = Math.round(playRange.get(1));
+        int minPause = Math.round(pauseRange.get(0));
+        int maxPause = Math.round(pauseRange.get(1));
+        
         float minVol = volRange.get(0) / 100f;
         float maxVol = volRange.get(1) / 100f;
         int volFreq = (int) sliderVolFreq.getValue();
@@ -342,7 +399,7 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, R.string.export_start, Toast.LENGTH_LONG).show();
         btnExport.setEnabled(false);
 
-        AudioExporter.exportChaosAudio(this, source, duration, playLevel, pauseLevel, minVol, maxVol, volFreq, new AudioExporter.ExportCallback() {
+        AudioExporter.exportChaosAudio(this, source, duration, minPlay, maxPlay, minPause, maxPause, minVol, maxVol, volFreq, new AudioExporter.ExportCallback() {
             @Override
             public void onSuccess(String path) {
                 runOnUiThread(() -> {

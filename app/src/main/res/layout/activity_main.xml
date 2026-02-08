@@ -61,87 +61,132 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:padding="24dp">
-
-            <!-- Controls Header -->
-            <LinearLayout
+            
+            <!-- Mode Toggle -->
+             <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/toggleMode"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="16dp">
+                android:layout_marginBottom="16dp"
+                app:singleSelection="true"
+                app:selectionRequired="true"
+                app:checkedButton="@id/btnModeLocal">
 
-                <TextView
-                    android:id="@+id/tvPlaylistHeader"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnModeLocal"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Soundscapes"
-                    android:textColor="@color/secondary_color"
-                    android:textAllCaps="true"
-                    android:letterSpacing="0.1"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
+                    android:text="@string/mode_local"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
 
-                <TextView
-                    android:id="@+id/btnClear"
-                    android:layout_width="wrap_content"
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnModeExternal"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="Clear All"
-                    android:textColor="@color/accent_error"
-                    android:textSize="14sp"
-                    android:padding="8dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"/>
-            </LinearLayout>
+                    android:layout_weight="1"
+                    android:text="@string/mode_external"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+            </com.google.android.material.button.MaterialButtonToggleGroup>
 
-            <!-- Playlist List -->
-            <FrameLayout
+            <TextView
+                android:id="@+id/tvExternalHint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:minHeight="150dp">
+                android:text="@string/mode_external_hint"
+                android:textColor="@color/secondary_color"
+                android:textSize="12sp"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone"/>
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/recyclerViewFiles"
+            <!-- Playlist Container (Visible only in Local Mode) -->
+            <LinearLayout
+                android:id="@+id/containerPlaylist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Controls Header -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false"/>
-                
-                <LinearLayout
-                    android:id="@+id/layoutEmptyState"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:alpha="0.5">
-                    
-                    <ImageView
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:src="@android:drawable/ic_menu_add"
-                        app:tint="@color/text_secondary"/>
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp">
+
                     <TextView
+                        android:id="@+id/tvPlaylistHeader"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Soundscapes"
+                        android:textColor="@color/secondary_color"
+                        android:textAllCaps="true"
+                        android:letterSpacing="0.1"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btnClear"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/no_file_selected"
-                        android:textColor="@color/text_secondary"
-                        android:layout_marginTop="8dp"/>
+                        android:text="Clear All"
+                        android:textColor="@color/accent_error"
+                        android:textSize="14sp"
+                        android:padding="8dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"/>
                 </LinearLayout>
-            </FrameLayout>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnAddFiles"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginTop="16dp"
-                android:layout_marginBottom="32dp"
-                android:text="@string/btn_add_files"
-                android:textColor="@color/primary_color"
-                android:textSize="14sp"
-                app:icon="@android:drawable/ic_input_add"
-                app:iconTint="@color/primary_color"
-                app:strokeColor="@color/primary_color"
-                app:strokeWidth="1dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                app:cornerRadius="12dp" />
+                <!-- Playlist List -->
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="150dp">
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/recyclerViewFiles"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"/>
+                    
+                    <LinearLayout
+                        android:id="@+id/layoutEmptyState"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        android:alpha="0.5">
+                        
+                        <ImageView
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:src="@android:drawable/ic_menu_add"
+                            app:tint="@color/text_secondary"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/no_file_selected"
+                            android:textColor="@color/text_secondary"
+                            android:layout_marginTop="8dp"/>
+                    </LinearLayout>
+                </FrameLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnAddFiles"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="32dp"
+                    android:text="@string/btn_add_files"
+                    android:textColor="@color/primary_color"
+                    android:textSize="14sp"
+                    app:icon="@android:drawable/ic_input_add"
+                    app:iconTint="@color/primary_color"
+                    app:strokeColor="@color/primary_color"
+                    app:strokeWidth="1dp"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    app:cornerRadius="12dp" />
+            </LinearLayout>
 
             <!-- Pattern Configuration Section -->
             <TextView
@@ -176,22 +221,22 @@
                     android:id="@+id/tvPlayDurValue"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="~30 sec"
+                    android:text="10s - 60s"
                     android:textColor="@color/primary_color"
                     android:textStyle="bold"
                     android:textSize="14sp"/>
             </LinearLayout>
 
-            <com.google.android.material.slider.Slider
+            <com.google.android.material.slider.RangeSlider
                 android:id="@+id/sliderPlayDur"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="-8dp"
-                android:valueFrom="1"
-                android:valueTo="10"
-                android:value="5"
+                android:valueFrom="0"
+                android:valueTo="360"
                 android:stepSize="1"
-                app:tickVisible="true"
+                app:values="@array/initial_play_range"
+                app:tickVisible="false"
                 app:thumbColor="@color/primary_color"
                 app:trackColorActive="@color/primary_color"
                 app:trackColorInactive="@color/surface_light" />
@@ -218,22 +263,22 @@
                     android:id="@+id/tvPauseDurValue"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="~30 sec"
+                    android:text="5s - 20s"
                     android:textColor="@color/primary_color"
                     android:textStyle="bold"
                     android:textSize="14sp"/>
             </LinearLayout>
 
-            <com.google.android.material.slider.Slider
+            <com.google.android.material.slider.RangeSlider
                 android:id="@+id/sliderPauseDur"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="-8dp"
-                android:valueFrom="1"
-                android:valueTo="10"
-                android:value="5"
+                android:valueFrom="0"
+                android:valueTo="360"
                 android:stepSize="1"
-                app:tickVisible="true"
+                app:values="@array/initial_pause_range"
+                app:tickVisible="false"
                 app:thumbColor="@color/primary_color"
                 app:trackColorActive="@color/primary_color"
                 app:trackColorInactive="@color/surface_light" />
